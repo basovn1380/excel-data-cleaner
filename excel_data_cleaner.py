@@ -1,38 +1,55 @@
 
+ import streamlit as st
 import pandas as pd
-from google.colab import files
+from io import BytesIO
 
-print("=" * 40)
-print("       EXCEL DATA CLEANER")
-print("=" * 40)
+st.set_page_config(
+    page_title="Excel Cleaner Pro",
+    page_icon="📊"
+)
 
-uploaded = files.upload()
-file_name = list(uploaded.keys())[0]
+st.title("📊 Excel Cleaner Pro")
+st.write("Clean your Excel data in seconds.")
 
-df = pd.read_excel(file_name)
-original_rows = len(df)
+uploaded = st.file_uploader(
+    "Upload your Excel file",
+    type=["xlsx"]
+)
 
-df.columns = df.columns.str.strip()
-df.dropna(how="all", inplace=True)
+if uploaded is not None:
+    df = pd.read_excel(uploaded)
+    original = len(df)
 
-duplicates_removed = df.duplicated().sum()
-df.drop_duplicates(inplace=True)
+    st.subheader("Original Data")
+    st.dataframe(df)
 
-for column in df.select_dtypes(include="object").columns:
-    df[column] = df[column].str.strip()
+    if st.button("Clean Data"):
+        df.columns = df.columns.str.strip()
 
-cleaned_rows = len(df)
-empty_rows_removed = original_rows - cleaned_rows - duplicates_removed
+        for col in df.select_dtypes(include="object"):
+            df[col] = df[col].map(
+                lambda x: x.strip() if isinstance(x, str) else x
+            )
 
-output_file = "cleaned_data.xlsx"
-df.to_excel(output_file, index=False)
+        df = df.replace(r"^\s*$", pd.NA, regex=True)
 
-print("\n--- CLEANING REPORT ---")
-print("Original rows:", original_rows)
-print("Duplicates removed:", duplicates_removed)
-print("Empty rows removed:", empty_rows_removed)
-print("Final rows:", cleaned_rows)
+        df = df.dropna(how="all")
+        df = df.drop_duplicates()
 
-print("\nCleaning completed successfully!")
+        st.success("Cleaning completed!")
 
-files.download(output_file)
+        st.metric("Original rows", original)
+        st.metric("Cleaned rows", len(df))
+        st.metric("Removed rows", original - len(df))
+
+        st.subheader("Cleaned Data")
+        st.dataframe(df)
+
+        output = BytesIO()
+        df.to_excel(output, index=False)
+
+        st.download_button(
+            "Download Cleaned Excel",
+            data=output.getvalue(),
+            file_name="cleaned_data.xlsx"
+        )
